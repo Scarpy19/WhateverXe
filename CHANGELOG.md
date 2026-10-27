@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2
+
+Use the latest [WhateverXe Graphics](https://github.com/b00t0x/WhateverXe-Graphics/releases) package.
+
+### Fixed
+
+- Restore graphics acceleration on macOS Sequoia 24H232 (Tiger Lake / Iris Xe): update the `_IOProtectCacheMode+0xCA` byte signature in `tglPrepareSequoiaMMIOUC()` so the MMIO UC guard matches the 24H232 kernel (call target `_pmap_enter_options` shifted by `0x30`, relative `0x2cb71` → `0x2cba1`).
+
 ## 0.6.1
 
 Use the latest [WhateverXe Graphics](https://github.com/b00t0x/WhateverXe-Graphics/releases) package.
