@@ -73,6 +73,38 @@ limits are listed in [device selection](docs/device-selection.md).
 - Xe-LPG, including Meteor Lake integrated graphics.
 - Xe2 and later graphics architectures.
 
+## Fix for macOS Sequoia 24H232 (Tiger Lake / Iris Xe)
+
+On macOS Sequoia 15.8.2 (build 24H232), Tiger Lake / Iris Xe graphics acceleration was blocked because the MMIO UC guard in `tglPrepareSequoiaMMIOUC()` failed at index 16 of `TGLSequoiaMMIOGuard`. The byte signature at `_IOProtectCacheMode+0xCA` did not match the 24H232 kernel: the relative call offset from `_IOProtectCacheMode+0xCA` to `_pmap_enter_options` shifted by `0x30` (from `0x2cb71` to `0x2cba1`). This left `TGLSequoiaMMIOGuard[16] = 0`, `TGLMMIOStrongUCRouted = No` and `TGLAcceleratorAdmissionReady = No`, so the accelerator start was refused and only the framebuffer worked.
+
+### Change
+
+File: `WhateverXe/kern_xe.cpp`, function `tglPrepareSequoiaMMIOUC()`
+
+Before:
+```cpp
+const uint8_t protectCall[] {0xE8,0x71,0xCB,0x02,0x00};
+```
+
+After:
+```cpp
+const uint8_t protectCall[] {0xE8,0xA1,0xCB,0x02,0x00};  // macOS Sequoia 24H232: _IOProtectCacheMode+0xCA calls _pmap_enter_options con rel=0x2cba1
+```
+
+### Validation on real hardware
+
+Validated on HP Pavilion Laptop 15-eg0xxx (Intel Core i5-1135G7 / Iris Xe `8086:9a49`), macOS Sequoia 15.8.2 (24H232), external 512 GB SSD:
+
+| Property | Before | After |
+|---|---|---|
+| `TGLSequoiaMMIOGuard[16]` | 0 | 1 |
+| `TGLMMIOStrongUCRouted` | No | Yes |
+| `TGLAcceleratorAdmissionReady` | No | Yes |
+
+Visible effect: graphics acceleration active, desktop background and transparent Dock working.
+
+The binary-patched EFI kext was validated at file offset `0xe9816` (`E8 71 CB 02 00` → `E8 A1 CB 02 00`). For an official release the kext should be rebuilt from source on macOS with Xcode (Lilu + MacKernelSDK), as documented in `AGENTS.md`.
+
 ## Required components
 
 Download the **RELEASE** ZIP from [Releases](https://github.com/b00t0x/WhateverXe/releases).
@@ -269,3 +301,9 @@ See [LICENSE.txt](LICENSE.txt). Lilu and MacKernelSDK are separate dependencies.
 Thanks to [JulioNectar/XPS13Plus](https://github.com/JulioNectar/Hackintosh-XPS13Plus-IrisXe-Tahoe) for sharing its Xe graphics work. Its compiler adapter and LLVM bridge informed the OS-native AIR conversion used in WhateverXe Graphics.
 
 Internal-panel work also draws on [WhateverXe-RaptorLakeP](https://github.com/samranahmad09/WhateverXe-RaptorLakeP), [X1Carbon-G11](https://github.com/dssoftx/Hackintosh-X1Carbon-G11-IrisXe-Tahoe), XPS13Plus and the [Linux i915 display sources](https://github.com/torvalds/linux/tree/v6.12/drivers/gpu/drm/i915/display) for hardware behavior and implementation comparisons.
+
+## Acknowledgments
+
+This work — the investigation, the kernel signature analysis, the fix for macOS Sequoia 24H232, and this documentation — was made possible thanks to **DeepSeek V4.1 Flash**.
+
+Special thanks to **b00t0x** for the original [WhateverXe](https://github.com/b00t0x/WhateverXe) repository and for maintaining the Intel Xe graphics acceleration project for macOS.
